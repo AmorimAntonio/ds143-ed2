@@ -59,7 +59,16 @@ func gerarPares(n, quantidade int, semente int64) [][2]int {
 //     conectados, chame Union. É o que fazem os programas da Aula 02;
 //  4. devolva time.Since(inicio).
 func medir(novo func(int) unionfind.UF, n int, pares [][2]int) time.Duration {
-	panic("TODO: implementar medir")
+	uf := novo(n)
+	inicio := time.Now()
+
+	for _, par := range pares {
+		if !uf.Connected(par[0], par[1]) {
+			uf.Union(par[0], par[1])
+		}
+	}
+
+	return time.Since(inicio)
 }
 
 // main percorre os tamanhos, chama medir para cada implementação e imprime a
