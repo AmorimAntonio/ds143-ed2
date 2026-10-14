@@ -75,14 +75,27 @@ Porque o quicksort faria partições mesmo já estando ordenado, o que resultari
 
 2. Na entrada já ordenada, o `InsertionSort` e o `QuickSort` mudam de
    comportamento em direções opostas. Explique cada um.
+   - Porque um vetor ordenado é a melhor situação para o insertionSort e a pior para o quicksort.
 
 ## Parte 3
 
 Saída de `./consultas`:
 
 ```
-cole aqui
+$ ./consultas
+n = 200000 elementos
+ordenar o vetor uma vez: 0.0198 s
+
+        k       A: seq.    B: ord+bin   B - ordenar
+        1        0.0000        0.0198        0.0000
+       10        0.0010        0.0198        0.0000
+      100        0.0074        0.0198        0.0000
+      500        0.0370        0.0198        0.0000
+     1000        0.0650        0.0198        0.0000
+     5000        0.3212        0.0198        0.0000
+    10000        0.7019        0.0198        0.0000
 ```
 
 3. A partir de quantas consultas compensa ordenar o vetor antes de buscar?
    Compare o valor medido com o que a análise prevê.
+Segundo os resultados, a partir de 500 consultas vale a pena ordenar o vetor antes de buscar, no resultado do exemplo sem ordenação com 500 consultas o tempo de busca demorou 0.0370s, já com ordenação, 0.0198s.
