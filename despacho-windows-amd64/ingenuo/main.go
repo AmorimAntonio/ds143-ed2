@@ -19,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"bot/tabela" // reutilizado da atividade 3
 )
 
 type Chamado struct {
@@ -26,6 +27,7 @@ type Chamado struct {
 	X, Y  int
 	Valor int
 	Prazo int
+	Morto bool // se ta ativo ou nao
 }
 
 type Ambulancia struct {
@@ -42,6 +44,7 @@ var (
 	leitor   *bufio.Scanner
 	escritor *bufio.Writer
 
+	indice *tabela.Tabela // indice hash
 	hospitais []Hospital
 	chamados  []Chamado
 )
@@ -112,6 +115,7 @@ func lerInicio() {
 
 // removerPorID procura o chamado no slice e o remove, trocando-o pelo
 // último elemento. Custo: proporcional ao número de chamados abertos.
+/*
 func removerPorID(id int) {
 	for i := range chamados {
 		if chamados[i].ID == id {
@@ -121,16 +125,15 @@ func removerPorID(id int) {
 		}
 	}
 }
+*/
 
 // removerExpirados mantém só os chamados com prazo maior ou igual ao turno.
 func removerExpirados(turno int) {
-	vivos := chamados[:0]
 	for _, c := range chamados {
-		if c.Prazo >= turno {
-			vivos = append(vivos, c)
+		if c.Prazo < turno {
+			c.Morto = true
 		}
 	}
-	chamados = vivos
 }
 
 func jogarTurno(turno int, ambulancias []Ambulancia) {
@@ -139,6 +142,11 @@ func jogarTurno(turno int, ambulancias []Ambulancia) {
 		if a.Livre {
 			melhor := -1
 			for i, c := range chamados {
+
+				if c.Morto{
+					continue // se ta morto, pula
+				}
+
 				if melhor == -1 || distancia(a.X, a.Y, c.X, c.Y) < distancia(a.X, a.Y, chamados[melhor].X, chamados[melhor].Y) {
 					melhor = i
 				}
@@ -170,6 +178,10 @@ func main() {
 	fmt.Fprintln(escritor, "PRONTO")
 	escritor.Flush()
 
+
+	// criando a tabela hash pra armazenar os chamados
+	indice = tabela.Nova(5000011) // primo grande pra nao precisar expandir durante a execucao
+ 
 	for {
 		c := lerCampos() // TURNO t
 		if c == nil {
@@ -180,12 +192,19 @@ func main() {
 		n := inteiro(lerCampos()[1]) // CHAMADOS n
 		for i := 0; i < n; i++ {
 			c := lerCampos()
-			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), inteiro(c[3]), inteiro(c[4])})
+			posicao := len(chamados)
+			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), inteiro(c[3]), inteiro(c[4]), false})
+			indice.Insere(inteiro(c[0]), posicao) // adiicona na tabela hash
 		}
 
 		r := inteiro(lerCampos()[1]) // RECOLHIDOS r
 		for i := 0; i < r; i++ {
-			removerPorID(inteiro(lerCampos()[0]))
+			id := inteiro(lerCampos()[0])
+			posicao, achou := indice.Busca(id)
+			if achou {
+				chamados[posicao].Morto = true
+				indice.Remove(id)
+			}
 		}
 		removerExpirados(turno)
 
