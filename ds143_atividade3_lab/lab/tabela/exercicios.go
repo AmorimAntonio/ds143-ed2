@@ -9,9 +9,28 @@ package tabela
 // tabela cresce para proximoPrimo(2*m) posições. Em inteiros, a condição é
 // 10*n > 7*m.
 func (t *Tabela) Insere(k, v int) {
-	panic("TODO: implementar Insere")
+	p := t.hash(k)
+	achou := false
+	for t.ocupada[p] {
+		if t.chaves[p] == k {
+			t.valores[p] = v
+			achou = true
+		}
+		p = (p + 1) % t.m()
+	}
+	if !achou {
+		t.chaves[p] = k
+		t.valores[p] = v
+		t.ocupada[p] = true
+		t.n++
+	}
+
+	if 10*(t.Len()) > 7*(t.m()) {
+		t.redimensiona(proximoPrimo(2 * t.m()))
+	}
 }
 
+// 
 // redimensiona troca o vetor por um de m posições e reinsere todos os pares.
 // A posição de cada chave muda, porque h(k) = k mod m depende de m.
 //
@@ -19,7 +38,23 @@ func (t *Tabela) Insere(k, v int) {
 // ocupadas e copie o resultado com *t = *nova, como no encadeamento.go da
 // aula de tabelas de dispersão.
 func (t *Tabela) redimensiona(m int) {
-	panic("TODO: implementar redimensiona")
+	nova := Nova(m)
+	for p:= 0; p < t.m(); p++ {
+		if t.ocupada[p] {
+			k := t.chaves[p]
+			v := t.valores[p]
+			
+			ip := nova.hash(k)
+			for nova.ocupada[ip] {
+				ip = (ip + 1) % nova.m()
+			}
+			nova.chaves[ip] = k
+			nova.valores[ip] = v
+			nova.ocupada[ip] = true
+			nova.n++
+		}
+	}
+	*t = *nova
 }
 
 // Remove tira a chave k da tabela e devolve true, ou devolve false se ela
@@ -36,5 +71,41 @@ func (t *Tabela) redimensiona(m int) {
 // tabela.go para escrever essa condição sem tratar a volta no fim do vetor
 // como caso à parte.
 func (t *Tabela) Remove(k int) bool {
-	panic("TODO: implementar Remove")
+	// procura o k na tabela
+	i := t.hash(k)
+	for t.ocupada[i] {
+		if t.chaves[i] == k {
+			break
+		}
+		i = (i + 1) % t.m()
+	}
+
+	// nao achou
+	if !t.ocupada[i] {
+		return false
+	}
+
+	// esvazia a pos
+	t.ocupada[i] = false
+	t.n--
+
+
+	j := (i + 1) % t.m()
+	for t.ocupada[j] {
+		h := t.hash(t.chaves[j]) // posicao de origem da chave que o j ta
+
+		// ve se a distancia de i (onde esvaziou) até j (onde está iterando agora)
+		// é menor ou igual a distancia de origem até j
+		if t.distancia(i, j) <= t.distancia(h, j) {
+			t.chaves[i] = t.chaves[j]
+			t.valores[i] = t.valores[j]
+			t.ocupada[i] = true
+			t.ocupada[j] = false
+			i = j // o novo buraco vira j
+		}
+
+		j = (j + 1) % t.m()
+	}
+
+	return true
 }
