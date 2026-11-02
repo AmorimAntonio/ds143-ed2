@@ -22,6 +22,9 @@ import (
 	"bot/tabela" // reutilizado da atividade 3
 )
 
+
+const TAM = 50 // tamanho das seções
+
 type Chamado struct {
 	ID    int
 	X, Y  int
@@ -50,8 +53,14 @@ var (
 
 	totalTurnos int // para saber o numero de turnos total
 	expiraEm [][]int // guarda os chamados prestes a expirar
+
+	// variaveis do seccionamento
 	largura int
 	altura int
+	colunasS int
+	linhasS int
+	// x = colunas da secao, y = linhas da secao, z = posicao do chamado especifico dentro da secao
+	secoes [][][]int 
 )
 
 // lerCampos lê a próxima linha da entrada e a divide em campos.
@@ -103,9 +112,14 @@ func direcao(x, y, alvoX, alvoY int) string {
 func lerInicio() {
 	c := lerCampos() // INICIO largura altura turnos limite_turno limite_preparo equipe num_equipes
 	totalTurnos = inteiro(c[3]) // guarda o total de turnos
+
 	// guarda altura e largura em variaveis globais
-	altura = inteiro(c[1]) 
-	largura = inteiro(c[2])
+	largura = inteiro(c[1]) 
+	altura = inteiro(c[2])
+
+	// calcula as secoes
+	colunasS = largura / TAM
+	linhasS  = altura/ TAM
 
 
 	h := inteiro(lerCampos()[1])
@@ -150,32 +164,83 @@ func removerExpirados(turno int) {
 	}
 }
 
+// retorna qual a secao que o chamado ta
+func qualSecao(x, y int) (int, int) {
+	sl := y/TAM
+	sc := x/TAM
+	return sl, sc
+}
+
+
+// procura em uma secao e limpa os mortos, devolve o melhor resultado atualizado
+func olharSecao(sl, sc, x, y, melhor, melhorDist int) (int, int){
+	secaoAtual := secoes[sl][sc]
+	i := 0
+	for i < len(secaoAtual) {
+		pos := secaoAtual[i] // posicao do chamado
+		if chamados[pos].Morto {
+			secaoAtual[i] = secaoAtual[len(secaoAtual)-1] // troca o chamado atual com o ultimo
+			secaoAtual = secaoAtual[:len(secaoAtual)-1] // remove o ultimo da lista
+			continue
+		} else {
+			d := distancia(x, y, chamados[pos].X, chamados[pos].Y)
+			if d < melhorDist { // se achou um chamado com menor distancia
+				melhor = pos // atualiza o melhor alvo
+				melhorDist = d // atualzia a melhor distancia	
+			}
+			i++
+		}
+	}
+	secoes[sl][sc] = secaoAtual // atualiza a lista
+	return melhor, melhorDist
+}
+
+
+func maisProximo(x, y int) int {
+	sl0, sc0 := qualSecao(x, y)
+	melhor := -1
+	melhorDist := largura + altura // maior que a maior distancia possivel so p marcar
+
+	for dl := -1; dl <= 1; dl++ {
+		for dc := -1; dc <= 1; dc++ {
+			sl := sl0 + dl
+			sc := sc0 + dc
+			if sl < 0 || sl >= linhasS || sc < 0 || sc >= colunasS {
+				continue // adjacente alvo nao existe
+			}
+			melhor, melhorDist = olharSecao(sl, sc, x, y, melhor, melhorDist)
+		}
+	}
+	return melhor
+}
+
+// hospitalMaisProximo devolve o índice, em hospitais, do hospital mais
+// próximo de (x, y). Olha todos: são no máximo 20.
+func hospitalMaisProximo(x, y int) int {
+	melhor := 0
+	for i, h := range hospitais {
+		if distancia(x, y, h.X, h.Y) < distancia(x, y, hospitais[melhor].X, hospitais[melhor].Y) {
+			melhor = i
+		}
+	}
+	return melhor
+}
+
 func jogarTurno(turno int, ambulancias []Ambulancia) {
 	for _, a := range ambulancias {
 		mov := "P"
 		if a.Livre {
-			melhor := -1
-			for i, c := range chamados {
-
-				if c.Morto{
-					continue // se ta morto, pula
-				}
-
-				if melhor == -1 || distancia(a.X, a.Y, c.X, c.Y) < distancia(a.X, a.Y, chamados[melhor].X, chamados[melhor].Y) {
-					melhor = i
-				}
-			}
+			melhor := maisProximo(a.X, a.Y)
 			if melhor != -1 {
 				mov = direcao(a.X, a.Y, chamados[melhor].X, chamados[melhor].Y)
+			} else {
+				// se n tem nada nas vizinhas espera perto do hospital
+				h := hospitalMaisProximo(a.X, a.Y)
+				mov = direcao(a.X, a.Y, hospitais[h].X, hospitais[h].Y)
 			}
 		} else {
-			melhor := 0
-			for i, h := range hospitais {
-				if distancia(a.X, a.Y, h.X, h.Y) < distancia(a.X, a.Y, hospitais[melhor].X, hospitais[melhor].Y) {
-					melhor = i
-				}
-			}
-			mov = direcao(a.X, a.Y, hospitais[melhor].X, hospitais[melhor].Y)
+			h := hospitalMaisProximo(a.X, a.Y)
+			mov = direcao(a.X, a.Y, hospitais[h].X, hospitais[h].Y)
 		}
 		fmt.Fprintln(escritor, a.ID, mov)
 	}
@@ -196,7 +261,11 @@ func main() {
 	// criando a tabela hash pra armazenar os chamados
 	indice = tabela.Nova(5000011) // primo grande pra nao precisar expandir durante a execucao
 	expiraEm = make([][]int, totalTurnos+1) // inicia o vetor de chamados p vencer, de 0 ao total de turnos
-
+	// inicia vetor de secoes
+	secoes = make([][][]int, linhasS)
+	for bl := 0; bl < linhasS; bl++ { // precisa do for por ter 3 dimensoes
+		secoes[bl] = make([][]int, colunasS)
+	}
 
 	fmt.Fprintln(escritor, "PRONTO")
 	escritor.Flush()
@@ -214,7 +283,8 @@ func main() {
 		for i := 0; i < n; i++ {
 			c := lerCampos()
 			posicao := len(chamados)
-			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), inteiro(c[3]), inteiro(c[4]), false})
+			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), 
+				inteiro(c[3]), inteiro(c[4]), false})
 			indice.Insere(inteiro(c[0]), posicao) // adiicona na tabela hash
 
 			// guarda na lista de prestes a expirar
@@ -222,6 +292,10 @@ func main() {
 			if prazo <= totalTurnos {
 				expiraEm[prazo] = append(expiraEm[prazo], posicao)
 			}
+
+			// descobre qual secao ta o chamado e insere na matriz
+			sl, sc := qualSecao(chamados[posicao].X, chamados[posicao].Y)
+			secoes[sl][sc] = append(secoes[sl][sc], posicao)
 		}
 
 		r := inteiro(lerCampos()[1]) // RECOLHIDOS r
