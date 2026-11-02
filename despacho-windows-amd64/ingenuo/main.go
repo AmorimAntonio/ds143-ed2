@@ -47,6 +47,11 @@ var (
 	indice *tabela.Tabela // indice hash
 	hospitais []Hospital
 	chamados  []Chamado
+
+	totalTurnos int // para saber o numero de turnos total
+	expiraEm [][]int // guarda os chamados prestes a expirar
+	largura int
+	altura int
 )
 
 // lerCampos lê a próxima linha da entrada e a divide em campos.
@@ -96,7 +101,13 @@ func direcao(x, y, alvoX, alvoY int) string {
 // lerInicio lê a mensagem de início. Este bot só usa os hospitais; os
 // bloqueios são lidos e descartados.
 func lerInicio() {
-	lerCampos() // INICIO largura altura turnos limite_turno limite_preparo equipe num_equipes
+	c := lerCampos() // INICIO largura altura turnos limite_turno limite_preparo equipe num_equipes
+	totalTurnos = inteiro(c[3]) // guarda o total de turnos
+	// guarda altura e largura em variaveis globais
+	altura = inteiro(c[1]) 
+	largura = inteiro(c[2])
+
+
 	h := inteiro(lerCampos()[1])
 	for i := 0; i < h; i++ {
 		c := lerCampos()
@@ -129,10 +140,13 @@ func removerPorID(id int) {
 
 // removerExpirados mantém só os chamados com prazo maior ou igual ao turno.
 func removerExpirados(turno int) {
-	for _, c := range chamados {
-		if c.Prazo < turno {
-			c.Morto = true
+	t := turno - 1
+	if t >= 1 {
+		for _, pos := range expiraEm[t]  {
+			chamados[pos].Morto = true
+			indice.Remove(chamados[pos].ID)
 		}
+		expiraEm[t] = nil
 	}
 }
 
@@ -174,14 +188,21 @@ func main() {
 	leitor.Buffer(make([]byte, 1<<16), 1<<20)
 	escritor = bufio.NewWriter(os.Stdout)
 
+	
 	lerInicio()
-	fmt.Fprintln(escritor, "PRONTO")
-	escritor.Flush()
+
 
 
 	// criando a tabela hash pra armazenar os chamados
 	indice = tabela.Nova(5000011) // primo grande pra nao precisar expandir durante a execucao
- 
+	expiraEm = make([][]int, totalTurnos+1) // inicia o vetor de chamados p vencer, de 0 ao total de turnos
+
+
+	fmt.Fprintln(escritor, "PRONTO")
+	escritor.Flush()
+
+
+
 	for {
 		c := lerCampos() // TURNO t
 		if c == nil {
@@ -195,6 +216,12 @@ func main() {
 			posicao := len(chamados)
 			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), inteiro(c[3]), inteiro(c[4]), false})
 			indice.Insere(inteiro(c[0]), posicao) // adiicona na tabela hash
+
+			// guarda na lista de prestes a expirar
+			prazo := inteiro(c[4])
+			if prazo <= totalTurnos {
+				expiraEm[prazo] = append(expiraEm[prazo], posicao)
+			}
 		}
 
 		r := inteiro(lerCampos()[1]) // RECOLHIDOS r
