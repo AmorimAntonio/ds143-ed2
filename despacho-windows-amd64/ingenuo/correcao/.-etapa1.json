@@ -1,7 +1,7 @@
 {
   "entrega": ".",
   "etapa": 1,
-  "pontos": 25,
+  "pontos": 45,
   "maximo": 45,
   "compilou": true,
   "testes": [
@@ -20,7 +20,7 @@
       "criterio": "p99 do processador por turno até 4,0 vezes o do bot indexado (mediana de 10 partidas do cenário estresse), sem passar do teto em mais de 10 turnos por partida",
       "valor": 15,
       "pontos": 15,
-      "motivo": "razão mediana 2,5 (de 0,9 a 4,1); exigido até 4,0",
+      "motivo": "razão mediana 1,8 (de 0,5 a 3,7); exigido até 4,0",
       "pontuacao": false
     },
     {
@@ -28,8 +28,8 @@
       "nome": "Bot ingênuo",
       "criterio": "soma de pontos pelo menos 10% maior que a do bot ingênuo em 10 partidas do cenário medio",
       "valor": 10,
-      "pontos": 0,
-      "motivo": "soma 49549 x 49052 (+1.0%; exigido +10%)",
+      "pontos": 10,
+      "motivo": "soma 80892 x 56385 (+43.5%; exigido +10%)",
       "pontuacao": true
     },
     {
@@ -37,8 +37,8 @@
       "nome": "Bot indexado",
       "criterio": "soma de pontos pelo menos 2% maior que a do bot indexado em 10 partidas do cenário estresse",
       "valor": 10,
-      "pontos": 0,
-      "motivo": "soma 371675 x 497749 (-25.3%; exigido +2%)",
+      "pontos": 10,
+      "motivo": "soma 489930 x 455797 (+7.5%; exigido +2%)",
       "pontuacao": true
     }
   ],
@@ -55,5 +55,5 @@
     9,
     10
   ],
-  "quando": "02/11/2026 20:36"
+  "quando": "08/11/2026 16:42"
 }

@@ -31,6 +31,8 @@ type Chamado struct {
 	Valor int
 	Prazo int
 	Morto bool // se ta ativo ou nao
+	Reservado bool // se tem alguem indo atras ou n
+	DistHosp int // distancia ate o hospital
 }
 
 type Ambulancia struct {
@@ -59,8 +61,12 @@ var (
 	altura int
 	colunasS int
 	linhasS int
+
 	// x = colunas da secao, y = linhas da secao, z = posicao do chamado especifico dentro da secao
 	secoes [][][]int 
+	
+	// guarda a posição do chamado que a ambulancia do id do alvo ta indo (-1 se n tem alvo)
+	alvo []int
 )
 
 // lerCampos lê a próxima linha da entrada e a divide em campos.
@@ -127,9 +133,13 @@ func lerInicio() {
 		c := lerCampos()
 		hospitais = append(hospitais, Hospital{inteiro(c[0]), inteiro(c[1])})
 	}
+
+	
 	k := inteiro(lerCampos()[1])
+	alvo = make([]int, k) // uma posicao no vetor p cada ambulancia
 	for i := 0; i < k; i++ {
 		lerCampos() // id x y
+		alvo[i] = -1 // inicia as ambulancias sem alvo
 	}
 	b := inteiro(lerCampos()[1])
 	for i := 0; i < b; i++ {
@@ -171,9 +181,22 @@ func qualSecao(x, y int) (int, int) {
 	return sl, sc
 }
 
+func nota(pos, d int) int{
+	// explicando o calculo da nota
+	// basicamente uma relação entre o valor do chamado e a distancia 
+	// +1 no divisor é pra não ter div por zero e *10000 é pra n ter q lidar com casa decimal
+	return chamados[pos].Valor * 10000 / (d + chamados[pos].DistHosp + 1)
+}
+
+// retorna se da tempo ou nao de chegar ao chamado alvo
+func daTempo(x, y, pos, turno int) bool {
+	d := distancia(x, y, chamados[pos].X, chamados[pos].Y)
+	return d <= chamados[pos].Prazo-turno+1
+}
+
 
 // procura em uma secao e limpa os mortos, devolve o melhor resultado atualizado
-func olharSecao(sl, sc, x, y, melhor, melhorDist int) (int, int){
+func olharSecao(sl, sc, x, y, melhor, melhorNota, turno int) (int, int){
 	secaoAtual := secoes[sl][sc]
 	i := 0
 	for i < len(secaoAtual) {
@@ -183,23 +206,31 @@ func olharSecao(sl, sc, x, y, melhor, melhorDist int) (int, int){
 			secaoAtual = secaoAtual[:len(secaoAtual)-1] // remove o ultimo da lista
 			continue
 		} else {
+
+			// ve se o chamado ja ta reservado por outra ambulancia e se da tempo
+			if chamados[pos].Reservado || !daTempo(x, y, pos, turno) {
+				i++
+				continue 
+			}
+
 			d := distancia(x, y, chamados[pos].X, chamados[pos].Y)
-			if d < melhorDist { // se achou um chamado com menor distancia
+			
+			if nota(pos, d) > melhorNota { // se achou um chamado com melhor nota
 				melhor = pos // atualiza o melhor alvo
-				melhorDist = d // atualzia a melhor distancia	
+				melhorNota = nota(pos, d) // atualzia a melhor nota	
 			}
 			i++
 		}
 	}
 	secoes[sl][sc] = secaoAtual // atualiza a lista
-	return melhor, melhorDist
+	return melhor, melhorNota
 }
 
 
-func maisProximo(x, y int) int {
+func melhorChamado(x, y, turno int) int {
 	sl0, sc0 := qualSecao(x, y)
 	melhor := -1
-	melhorDist := largura + altura // maior que a maior distancia possivel so p marcar
+	melhorNota := -1 // -1 pra iniciar
 
 	for dl := -1; dl <= 1; dl++ {
 		for dc := -1; dc <= 1; dc++ {
@@ -208,7 +239,7 @@ func maisProximo(x, y int) int {
 			if sl < 0 || sl >= linhasS || sc < 0 || sc >= colunasS {
 				continue // adjacente alvo nao existe
 			}
-			melhor, melhorDist = olharSecao(sl, sc, x, y, melhor, melhorDist)
+			melhor, melhorNota = olharSecao(sl, sc, x, y, melhor, melhorNota, turno)
 		}
 	}
 	return melhor
@@ -228,17 +259,43 @@ func hospitalMaisProximo(x, y int) int {
 
 func jogarTurno(turno int, ambulancias []Ambulancia) {
 	for _, a := range ambulancias {
+		A := alvo[a.ID] // chamado alvo da ambulancia
 		mov := "P"
 		if a.Livre {
-			melhor := maisProximo(a.X, a.Y)
-			if melhor != -1 {
-				mov = direcao(a.X, a.Y, chamados[melhor].X, chamados[melhor].Y)
+			// se o alvo ainda vale
+			if A != -1 {
+				d := distancia(a.X, a.Y, chamados[A].X, chamados[A].Y)
+				// se o alvo nao faz sentido 
+				if chamados[A].Morto || d > chamados[A].Prazo-turno+1 {
+					chamados[A].Reservado = false // libera para outra ambulância
+					A = -1 // fica sem alvo
+				}
+			}
+
+			// se nao tem alvo
+			if A == -1 {
+				A = melhorChamado(a.X, a.Y, turno)
+				if A != -1 {
+					chamados[A].Reservado = true
+				}
+			}
+
+			// guarda o alvo
+			alvo[a.ID] = A
+
+			// anda
+			if A != -1 {
+				mov = direcao(a.X, a.Y, chamados[A].X, chamados[A].Y)
 			} else {
-				// se n tem nada nas vizinhas espera perto do hospital
 				h := hospitalMaisProximo(a.X, a.Y)
 				mov = direcao(a.X, a.Y, hospitais[h].X, hospitais[h].Y)
 			}
+		
 		} else {
+			if A != -1 { // libera se tinha alvo
+				chamados[A].Reservado = false
+				alvo[a.ID] = -1
+			}
 			h := hospitalMaisProximo(a.X, a.Y)
 			mov = direcao(a.X, a.Y, hospitais[h].X, hospitais[h].Y)
 		}
@@ -284,7 +341,14 @@ func main() {
 			c := lerCampos()
 			posicao := len(chamados)
 			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), 
-				inteiro(c[3]), inteiro(c[4]), false})
+				inteiro(c[3]), inteiro(c[4]), false, false, 0})
+
+			// calcula a distancia ate o hospital mais proximo
+			h := hospitalMaisProximo(chamados[posicao].X, chamados[posicao].Y)
+			// passos do chamado ate o hospital
+			chamados[posicao].DistHosp = distancia(chamados[posicao].X, chamados[posicao].Y, 
+				hospitais[h].X, hospitais[h].Y)
+
 			indice.Insere(inteiro(c[0]), posicao) // adiicona na tabela hash
 
 			// guarda na lista de prestes a expirar
