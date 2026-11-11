@@ -23,7 +23,7 @@ import (
 )
 
 
-const TAM = 50 // tamanho das seções
+const TAM = 25 // tamanho das seções
 
 type Chamado struct {
 	ID    int
