@@ -33,6 +33,7 @@ type Chamado struct {
 	Morto bool // se ta ativo ou nao
 	Reservado bool // se tem alguem indo atras ou n
 	DistHosp int // distancia ate o hospital
+	
 }
 
 type Ambulancia struct {
@@ -67,7 +68,17 @@ var (
 	
 	// guarda a posição do chamado que a ambulancia do id do alvo ta indo (-1 se n tem alvo)
 	alvo []int
+
+
+
+	// Adicionadas para a Etapa 2:
+	bloqueado [] bool // ve se é parede ou n
+	distHosp [] int // guarda a distancia da celula ate o hosp (-1 se n visitou ainda)
+	passoHosp [] string // movimento que tem que fazer p ir ate o hosp
+	// N, S, L e O ou P se ta no proprio hospital
 )
+
+// ===================== leitura da entrada =====================
 
 // lerCampos lê a próxima linha da entrada e a divide em campos.
 // Devolve nil quando a entrada termina.
@@ -86,35 +97,7 @@ func inteiro(s string) int {
 	return v
 }
 
-func abs(v int) int {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
-
-func distancia(x1, y1, x2, y2 int) int {
-	return abs(x1-x2) + abs(y1-y2)
-}
-
-// direcao devolve o movimento que aproxima (x, y) de (alvoX, alvoY),
-// andando primeiro na horizontal.
-func direcao(x, y, alvoX, alvoY int) string {
-	switch {
-	case x < alvoX:
-		return "L"
-	case x > alvoX:
-		return "O"
-	case y < alvoY:
-		return "S"
-	case y > alvoY:
-		return "N"
-	}
-	return "P"
-}
-
-// lerInicio lê a mensagem de início. Este bot só usa os hospitais; os
-// bloqueios são lidos e descartados.
+// lerInicio lê a mensagem de início. 
 func lerInicio() {
 	c := lerCampos() // INICIO largura altura turnos limite_turno limite_preparo equipe num_equipes
 	totalTurnos = inteiro(c[3]) // guarda o total de turnos
@@ -122,6 +105,9 @@ func lerInicio() {
 	// guarda altura e largura em variaveis globais
 	largura = inteiro(c[1]) 
 	altura = inteiro(c[2])
+
+	// vetor com as paredes
+	bloqueado = make([]bool, largura*altura)
 
 	// calcula as secoes
 	colunasS = largura / TAM
@@ -141,11 +127,164 @@ func lerInicio() {
 		lerCampos() // id x y
 		alvo[i] = -1 // inicia as ambulancias sem alvo
 	}
+
+
+	// lendo os bloqueios
 	b := inteiro(lerCampos()[1])
 	for i := 0; i < b; i++ {
-		lerCampos() // x1 y1 x2 y2
+		c := lerCampos()
+
+		// pega os cantos dos bloqueios
+		x1 := inteiro(c[0])
+		y1 := inteiro(c[1])
+		x2 := inteiro(c[2])
+		y2 := inteiro(c[3])
+		// marca a celula de dentro como bloqueadas
+		for y := y1; y <= y2; y++ {
+			for x := x1; x <= x2; x++ {
+				bloqueado[cel(x, y)] = true
+			}
+		}
 	}
 	lerCampos() // FIM
+}
+
+func percursoLarguraHospitais() {
+	n := largura * altura
+
+	distHosp = make([]int, n)
+	for i := 0; i < n; i++ {
+		distHosp[i] = -1 // nao visitada
+	}
+	passoHosp = make([]string, n)
+
+	// fila com todas as celulas
+	fila := make([]int, n)
+	ini, fim := 0, 0
+
+	// hospitais na fila
+	for _, h := range hospitais {
+		c := cel(h.X, h.Y)
+		distHosp[c] = 0
+		passoHosp[c] = "P" // hospital = hospital logicamente
+		fila[fim] = c
+		fim++
+	}
+
+
+	for ini < fim {
+		// pega a proxima celula da fila
+		c := fila[ini]
+		ini++
+		x := c % largura
+		y := c / largura
+
+		// vizinho a leste = pra voltar ate c, anda pra oeste
+		if x+1 < largura {
+			nc := cel(x+1, y)
+			if !bloqueado[nc] && distHosp[nc] == -1 {
+				distHosp[nc] = distHosp[c] + 1
+				passoHosp[nc] = "O"
+				fila[fim] = nc
+				fim++
+			}
+		}
+
+		// vizinho a oeste = pra voltar ate c, anda pra leste
+		if x-1 >= 0 {
+			nc := cel(x-1, y)
+			if !bloqueado[nc] && distHosp[nc] == -1 {
+				distHosp[nc] = distHosp[c] + 1
+				passoHosp[nc] = "L"
+				fila[fim] = nc
+				fim++
+			}
+		}
+
+		// vizinho ao sul = pra voltar ate c, anda pro norte
+		if y+1 < altura {
+			nc := cel(x, y+1)
+			if !bloqueado[nc] && distHosp[nc] == -1 {
+				distHosp[nc] = distHosp[c] + 1
+				passoHosp[nc] = "N"
+				fila[fim] = nc
+				fim++
+			}
+		}
+
+		// vizinho ao norte = pra voltar ate c, anda pro sul
+		if y-1 >= 0 {
+			nc := cel(x, y-1)
+			if !bloqueado[nc] && distHosp[nc] == -1 {
+				distHosp[nc] = distHosp[c] + 1
+				passoHosp[nc] = "S"
+				fila[fim] = nc
+				fim++
+			}
+		}
+	}
+}
+
+
+// ===================== funcoes auxiliares =====================
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func distancia(x1, y1, x2, y2 int) int {
+	return abs(x1-x2) + abs(y1-y2)
+}
+
+// função pra deixar uma coordenada em uma dimensão
+func cel(x, y int) int { 
+	return y*largura + x 
+}
+
+// direcao devolve o movimento que aproxima (x, y) de (alvoX, alvoY),
+// andando primeiro na horizontal.
+func direcao(x, y, alvoX, alvoY int) string {
+	switch {
+	case x < alvoX:
+		return "L"
+	case x > alvoX:
+		return "O"
+	case y < alvoY:
+		return "S"
+	case y > alvoY:
+		return "N"
+	}
+	return "P"
+}
+
+// ===================== controle dos chamados =====================
+
+// removerExpirados mantém só os chamados com prazo maior ou igual ao turno.
+func removerExpirados(turno int) {
+	t := turno - 1
+	if t >= 1 {
+		for _, pos := range expiraEm[t]  {
+			chamados[pos].Morto = true
+			indice.Remove(chamados[pos].ID)
+		}
+		expiraEm[t] = nil
+	}
+}
+
+func nota(pos, d int) int{
+	// explicando o calculo da nota
+	// basicamente uma relação entre o valor do chamado e a distancia 
+	// +1 no divisor é pra não ter div por zero e *10000 é pra n ter q lidar com casa decimal
+	return chamados[pos].Valor * 10000 / (d + chamados[pos].DistHosp + 1)
+}
+
+// retorna se da tempo ou nao de chegar ao chamado alvo
+func daTempo(x, y, pos, turno int) bool {
+	d := distancia(x, y, chamados[pos].X, chamados[pos].Y)
+	return d <= chamados[pos].Prazo-turno+1
 }
 
 // removerPorID procura o chamado no slice e o remove, trocando-o pelo
@@ -162,17 +301,7 @@ func removerPorID(id int) {
 }
 */
 
-// removerExpirados mantém só os chamados com prazo maior ou igual ao turno.
-func removerExpirados(turno int) {
-	t := turno - 1
-	if t >= 1 {
-		for _, pos := range expiraEm[t]  {
-			chamados[pos].Morto = true
-			indice.Remove(chamados[pos].ID)
-		}
-		expiraEm[t] = nil
-	}
-}
+// ===================== busca nas secoes =====================
 
 // retorna qual a secao que o chamado ta
 func qualSecao(x, y int) (int, int) {
@@ -180,20 +309,6 @@ func qualSecao(x, y int) (int, int) {
 	sc := x/TAM
 	return sl, sc
 }
-
-func nota(pos, d int) int{
-	// explicando o calculo da nota
-	// basicamente uma relação entre o valor do chamado e a distancia 
-	// +1 no divisor é pra não ter div por zero e *10000 é pra n ter q lidar com casa decimal
-	return chamados[pos].Valor * 10000 / (d + chamados[pos].DistHosp + 1)
-}
-
-// retorna se da tempo ou nao de chegar ao chamado alvo
-func daTempo(x, y, pos, turno int) bool {
-	d := distancia(x, y, chamados[pos].X, chamados[pos].Y)
-	return d <= chamados[pos].Prazo-turno+1
-}
-
 
 // procura em uma secao e limpa os mortos, devolve o melhor resultado atualizado
 func olharSecao(sl, sc, x, y, melhor, melhorNota, turno int) (int, int){
@@ -245,27 +360,23 @@ func melhorChamado(x, y, turno int) int {
 	return melhor
 }
 
-// hospitalMaisProximo devolve o índice, em hospitais, do hospital mais
-// próximo de (x, y). Olha todos: são no máximo 20.
-func hospitalMaisProximo(x, y int) int {
-	melhor := 0
-	for i, h := range hospitais {
-		if distancia(x, y, h.X, h.Y) < distancia(x, y, hospitais[melhor].X, hospitais[melhor].Y) {
-			melhor = i
-		}
-	}
-	return melhor
-}
+
+// ===================== turno e main =====================
 
 func jogarTurno(turno int, ambulancias []Ambulancia) {
+
+	// p cada ambulancia
 	for _, a := range ambulancias {
 		A := alvo[a.ID] // chamado alvo da ambulancia
-		mov := "P"
+		mov := "P" // parado por padrão
+
+		// para as livres
 		if a.Livre {
+
 			// se o alvo ainda vale
 			if A != -1 {
 				d := distancia(a.X, a.Y, chamados[A].X, chamados[A].Y)
-				// se o alvo nao faz sentido 
+				// ou seja, se morreu ou se n tem mais como chegar a tempo
 				if chamados[A].Morto || d > chamados[A].Prazo-turno+1 {
 					chamados[A].Reservado = false // libera para outra ambulância
 					A = -1 // fica sem alvo
@@ -274,6 +385,7 @@ func jogarTurno(turno int, ambulancias []Ambulancia) {
 
 			// se nao tem alvo
 			if A == -1 {
+				// procura outro
 				A = melhorChamado(a.X, a.Y, turno)
 				if A != -1 {
 					chamados[A].Reservado = true
@@ -287,17 +399,18 @@ func jogarTurno(turno int, ambulancias []Ambulancia) {
 			if A != -1 {
 				mov = direcao(a.X, a.Y, chamados[A].X, chamados[A].Y)
 			} else {
-				h := hospitalMaisProximo(a.X, a.Y)
-				mov = direcao(a.X, a.Y, hospitais[h].X, hospitais[h].Y)
+				// hospital mais proximo
+				mov = passoHosp[cel(a.X, a.Y)]
 			}
 		
+
+			// para as ocupadas:
 		} else {
 			if A != -1 { // libera se tinha alvo
 				chamados[A].Reservado = false
 				alvo[a.ID] = -1
 			}
-			h := hospitalMaisProximo(a.X, a.Y)
-			mov = direcao(a.X, a.Y, hospitais[h].X, hospitais[h].Y)
+			mov = passoHosp[cel(a.X, a.Y)]
 		}
 		fmt.Fprintln(escritor, a.ID, mov)
 	}
@@ -316,13 +429,17 @@ func main() {
 
 
 	// criando a tabela hash pra armazenar os chamados
-	indice = tabela.Nova(5000011) // primo grande pra nao precisar expandir durante a execucao
+	indice = tabela.Nova(2000003) // primo grande pra nao precisar expandir durante a execucao
 	expiraEm = make([][]int, totalTurnos+1) // inicia o vetor de chamados p vencer, de 0 ao total de turnos
 	// inicia vetor de secoes
 	secoes = make([][][]int, linhasS)
 	for bl := 0; bl < linhasS; bl++ { // precisa do for por ter 3 dimensoes
 		secoes[bl] = make([][]int, colunasS)
 	}
+
+	// função que marca o caminho das celulas
+	percursoLarguraHospitais()
+
 
 	fmt.Fprintln(escritor, "PRONTO")
 	escritor.Flush()
@@ -343,11 +460,9 @@ func main() {
 			chamados = append(chamados, Chamado{inteiro(c[0]), inteiro(c[1]), inteiro(c[2]), 
 				inteiro(c[3]), inteiro(c[4]), false, false, 0})
 
-			// calcula a distancia ate o hospital mais proximo
-			h := hospitalMaisProximo(chamados[posicao].X, chamados[posicao].Y)
-			// passos do chamado ate o hospital
-			chamados[posicao].DistHosp = distancia(chamados[posicao].X, chamados[posicao].Y, 
-				hospitais[h].X, hospitais[h].Y)
+			
+			// ve qnt falta pra chegar no hospital mais proximo
+			chamados[posicao].DistHosp = distHosp[cel(chamados[posicao].X, chamados[posicao].Y)]
 
 			indice.Insere(inteiro(c[0]), posicao) // adiicona na tabela hash
 
