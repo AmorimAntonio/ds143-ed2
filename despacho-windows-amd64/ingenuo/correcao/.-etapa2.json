@@ -1,0 +1,41 @@
+{
+  "entrega": ".",
+  "etapa": 2,
+  "pontos": 15,
+  "maximo": 15,
+  "compilou": true,
+  "testes": [
+    {
+      "etapa": 2,
+      "nome": "Protocolo e tempo",
+      "criterio": "nenhuma infração e p99 do processador por turno até 4,0 vezes o do bot da etapa 2 (mediana de 10 partidas do cenário estresse com bloqueios), sem passar do teto em mais de 10 turnos por partida",
+      "valor": 7,
+      "pontos": 7,
+      "motivo": "nenhuma infração; razão mediana 1,5 (de 0,7 a 3,1); exigido até 4,0",
+      "pontuacao": false
+    },
+    {
+      "etapa": 2,
+      "nome": "Bot de referência",
+      "criterio": "soma de pontos pelo menos 2% maior que a do bot da etapa 2 em 10 partidas do cenário medio com bloqueios",
+      "valor": 8,
+      "pontos": 8,
+      "motivo": "soma 67281 x 62416 (+7.8%; exigido +2%)",
+      "pontuacao": true
+    }
+  ],
+  "alertas": null,
+  "sementes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "quando": "22/11/2026 12:25"
+}

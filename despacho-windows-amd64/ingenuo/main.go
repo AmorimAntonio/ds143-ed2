@@ -24,6 +24,9 @@ import (
 
 
 const TAM = 25 // tamanho das seções
+const DISTMAX = 100 // distancia maxima do percurso em larg
+const MAXBUSCAS = 30 // 30 buscas por turno no maximo p n estourar
+
 
 type Chamado struct {
 	ID    int
@@ -33,7 +36,6 @@ type Chamado struct {
 	Morto bool // se ta ativo ou nao
 	Reservado bool // se tem alguem indo atras ou n
 	DistHosp int // distancia ate o hospital
-	
 }
 
 type Ambulancia struct {
@@ -62,6 +64,7 @@ var (
 	altura int
 	colunasS int
 	linhasS int
+	rodada int // qual rodada é
 
 	// x = colunas da secao, y = linhas da secao, z = posicao do chamado especifico dentro da secao
 	secoes [][][]int 
@@ -71,11 +74,17 @@ var (
 
 
 
-	// Adicionadas para a Etapa 2:
+	// adicionadas para a Etapa 2:
 	bloqueado [] bool // ve se é parede ou n
 	distHosp [] int // guarda a distancia da celula ate o hosp (-1 se n visitou ainda)
-	passoHosp [] string // movimento que tem que fazer p ir ate o hosp
+	passoHosp []byte // movimento que tem que fazer p ir ate o hosp
 	// N, S, L e O ou P se ta no proprio hospital
+
+	filaAmb []int // a fila do percurso da ambulancia
+	visitado []int // rodada q a celula foi visitada
+	pai []int // celula usada pra chegar nessa
+	pilha [][]string // pilha de movimentos por ambulancia
+	desistiu []int // o último chamado que cada ambulância abandonou (-1 = nenhum).
 )
 
 // ===================== leitura da entrada =====================
@@ -122,10 +131,13 @@ func lerInicio() {
 
 	
 	k := inteiro(lerCampos()[1])
-	alvo = make([]int, k) // uma posicao no vetor p cada ambulancia
+	alvo = make([]int, k)
+	pilha = make([][]string, k)
+	desistiu = make([]int, k)
 	for i := 0; i < k; i++ {
-		lerCampos() // id x y
-		alvo[i] = -1 // inicia as ambulancias sem alvo
+		lerCampos()
+		alvo[i] = -1
+		desistiu[i] = -1
 	}
 
 
@@ -156,7 +168,7 @@ func percursoLarguraHospitais() {
 	for i := 0; i < n; i++ {
 		distHosp[i] = -1 // nao visitada
 	}
-	passoHosp = make([]string, n)
+	passoHosp = make([]byte, n)
 
 	// fila com todas as celulas
 	fila := make([]int, n)
@@ -166,7 +178,7 @@ func percursoLarguraHospitais() {
 	for _, h := range hospitais {
 		c := cel(h.X, h.Y)
 		distHosp[c] = 0
-		passoHosp[c] = "P" // hospital = hospital logicamente
+		passoHosp[c] = 'P' // hospital = hospital logicamente
 		fila[fim] = c
 		fim++
 	}
@@ -184,7 +196,7 @@ func percursoLarguraHospitais() {
 			nc := cel(x+1, y)
 			if !bloqueado[nc] && distHosp[nc] == -1 {
 				distHosp[nc] = distHosp[c] + 1
-				passoHosp[nc] = "O"
+				passoHosp[nc] = 'O'
 				fila[fim] = nc
 				fim++
 			}
@@ -195,7 +207,7 @@ func percursoLarguraHospitais() {
 			nc := cel(x-1, y)
 			if !bloqueado[nc] && distHosp[nc] == -1 {
 				distHosp[nc] = distHosp[c] + 1
-				passoHosp[nc] = "L"
+				passoHosp[nc] = 'L'
 				fila[fim] = nc
 				fim++
 			}
@@ -206,7 +218,7 @@ func percursoLarguraHospitais() {
 			nc := cel(x, y+1)
 			if !bloqueado[nc] && distHosp[nc] == -1 {
 				distHosp[nc] = distHosp[c] + 1
-				passoHosp[nc] = "N"
+				passoHosp[nc] = 'N'
 				fila[fim] = nc
 				fim++
 			}
@@ -217,12 +229,124 @@ func percursoLarguraHospitais() {
 			nc := cel(x, y-1)
 			if !bloqueado[nc] && distHosp[nc] == -1 {
 				distHosp[nc] = distHosp[c] + 1
-				passoHosp[nc] = "S"
+				passoHosp[nc] = 'S'
 				fila[fim] = nc
 				fim++
 			}
 		}
 	}
+}
+
+
+func caminho(id, x, y, pos, turno int) bool {
+
+	// estabelece limite, limitado ao maximo da var global constante
+	limite := chamados[pos].Prazo - turno + 1
+	if limite >  DISTMAX {
+		limite = DISTMAX
+	}
+
+	// preparando a busca
+	rodada++ // muda p prox rodada 
+	c0 := cel(x, y) // celula da ambulancia
+	alvoC := cel(chamados[pos].X, chamados[pos].Y) // celulla chamado
+	visitado[c0] = rodada 
+	filaAmb[0] = c0
+	ini := 0 // quem sai da fila
+	fim := 1; // quem entra na fila
+	d := 0 // distancia ate a ambulancia (0 pq a amabulancia ta aqui)
+	fimNivel := 1; 
+	achou := c0 == alvoC // se ja ta em cima do chamado, é true
+	
+	// percorre em largura ate achar o chamado ou passar do limite
+	for ini < fim && !achou {
+		// terminou a camada atual, aumenta a distancia
+		if ini == fimNivel {
+			d++
+			fimNivel = fim
+			// se o vizinho ta fora do limite
+			if d >= limite {
+				break 
+			}
+		}
+
+		// pega as coord da prox cel na fila
+		c := filaAmb[ini]
+		ini++
+		x := c % largura
+		y := c / largura
+
+		// leste
+		if x+1 < largura {
+			nc := cel(x+1, y)
+			if !bloqueado[nc] && visitado[nc] != rodada {
+				visitado[nc] = rodada
+				pai[nc] = c
+				filaAmb[fim] = nc
+				fim++
+				if nc == alvoC {
+					achou = true
+				}
+			}
+		}
+
+		// oeste
+		if x-1 >= 0 {
+			nc := cel(x-1, y)
+			if !bloqueado[nc] && visitado[nc] != rodada {
+				visitado[nc] = rodada
+				pai[nc] = c
+				filaAmb[fim] = nc
+				fim++
+				if nc == alvoC {
+					achou = true
+				}
+			}
+		}
+
+		// sul
+		if y+1 < altura {
+			nc := cel(x, y+1)
+			if !bloqueado[nc] && visitado[nc] != rodada {
+				visitado[nc] = rodada
+				pai[nc] = c
+				filaAmb[fim] = nc
+				fim++
+				if nc == alvoC {
+					achou = true
+				}
+			}
+		}
+
+		// norte
+		if y-1 >= 0 {
+			nc := cel(x, y-1)
+			if !bloqueado[nc] && visitado[nc] != rodada {
+				visitado[nc] = rodada
+				pai[nc] = c
+				filaAmb[fim] = nc
+				fim++
+				if nc == alvoC {
+					achou = true
+				}
+			}
+		}
+	}
+
+	if !achou {
+		return false
+	}
+
+	// monta a pilha voltando do chamado ate a ambulancia
+	// o ultimo empilhado é o primeiro movimento
+	pilha[id] = pilha[id][:0]
+	c := alvoC
+	for c != c0 {
+		p := pai[c]
+		pilha[id] = append(pilha[id], direcao(p%largura, p/largura, c%largura, c/largura))
+		c = p
+	}
+	return true
 }
 
 
@@ -278,7 +402,9 @@ func nota(pos, d int) int{
 	// explicando o calculo da nota
 	// basicamente uma relação entre o valor do chamado e a distancia 
 	// +1 no divisor é pra não ter div por zero e *10000 é pra n ter q lidar com casa decimal
-	return chamados[pos].Valor * 10000 / (d + chamados[pos].DistHosp + 1)
+	// formula original chamados[pos].Valor * 10000 / (d + chamados[pos].DistHosp + 1)
+	// alterada depois de mts testes para ir achando o ponto ideal
+	return (chamados[pos].Valor + 10) * 20000 / (3*d + 2*chamados[pos].DistHosp + 2)
 }
 
 // retorna se da tempo ou nao de chegar ao chamado alvo
@@ -311,7 +437,7 @@ func qualSecao(x, y int) (int, int) {
 }
 
 // procura em uma secao e limpa os mortos, devolve o melhor resultado atualizado
-func olharSecao(sl, sc, x, y, melhor, melhorNota, turno int) (int, int){
+func olharSecao(id, sl, sc, x, y, melhor, melhorNota, turno int) (int, int) {
 	secaoAtual := secoes[sl][sc]
 	i := 0
 	for i < len(secaoAtual) {
@@ -323,7 +449,7 @@ func olharSecao(sl, sc, x, y, melhor, melhorNota, turno int) (int, int){
 		} else {
 
 			// ve se o chamado ja ta reservado por outra ambulancia e se da tempo
-			if chamados[pos].Reservado || !daTempo(x, y, pos, turno) {
+			if chamados[pos].Reservado || pos == desistiu[id] || !daTempo(x, y, pos, turno) {
 				i++
 				continue 
 			}
@@ -342,7 +468,7 @@ func olharSecao(sl, sc, x, y, melhor, melhorNota, turno int) (int, int){
 }
 
 
-func melhorChamado(x, y, turno int) int {
+func melhorChamado(id, x, y, turno int) int {
 	sl0, sc0 := qualSecao(x, y)
 	melhor := -1
 	melhorNota := -1 // -1 pra iniciar
@@ -354,7 +480,7 @@ func melhorChamado(x, y, turno int) int {
 			if sl < 0 || sl >= linhasS || sc < 0 || sc >= colunasS {
 				continue // adjacente alvo nao existe
 			}
-			melhor, melhorNota = olharSecao(sl, sc, x, y, melhor, melhorNota, turno)
+			melhor, melhorNota = olharSecao(id, sl, sc, x, y, melhor, melhorNota, turno)
 		}
 	}
 	return melhor
@@ -364,6 +490,8 @@ func melhorChamado(x, y, turno int) int {
 // ===================== turno e main =====================
 
 func jogarTurno(turno int, ambulancias []Ambulancia) {
+
+	buscas := 0
 
 	// p cada ambulancia
 	for _, a := range ambulancias {
@@ -375,20 +503,27 @@ func jogarTurno(turno int, ambulancias []Ambulancia) {
 
 			// se o alvo ainda vale
 			if A != -1 {
-				d := distancia(a.X, a.Y, chamados[A].X, chamados[A].Y)
+				d := len(pilha[a.ID])
 				// ou seja, se morreu ou se n tem mais como chegar a tempo
 				if chamados[A].Morto || d > chamados[A].Prazo-turno+1 {
 					chamados[A].Reservado = false // libera para outra ambulância
+					pilha[a.ID] = pilha[a.ID][:0] // libera a pilha tb
 					A = -1 // fica sem alvo
 				}
 			}
 
 			// se nao tem alvo
-			if A == -1 {
+			if A == -1 && buscas < MAXBUSCAS{
+				buscas++
 				// procura outro
-				A = melhorChamado(a.X, a.Y, turno)
+				A = melhorChamado(a.ID, a.X, a.Y, turno)
 				if A != -1 {
-					chamados[A].Reservado = true
+					if caminho(a.ID, a.X, a.Y, A, turno) {
+						chamados[A].Reservado = true
+					} else {
+						desistiu[a.ID] = A // nao da tempo pelas ruas, nao escolhe de novo
+						A = -1
+					}
 				}
 			}
 
@@ -397,20 +532,25 @@ func jogarTurno(turno int, ambulancias []Ambulancia) {
 
 			// anda
 			if A != -1 {
-				mov = direcao(a.X, a.Y, chamados[A].X, chamados[A].Y)
+				if len(pilha[a.ID]) > 0 {
+					topo := len(pilha[a.ID]) - 1
+					mov = pilha[a.ID][topo]
+					pilha[a.ID] = pilha[a.ID][:topo]
+				}
 			} else {
 				// hospital mais proximo
-				mov = passoHosp[cel(a.X, a.Y)]
+				mov = string(passoHosp[cel(a.X, a.Y)])
 			}
 		
 
-			// para as ocupadas:
+		// para as ocupadas:
 		} else {
 			if A != -1 { // libera se tinha alvo
 				chamados[A].Reservado = false
 				alvo[a.ID] = -1
+				pilha[a.ID] = pilha[a.ID][:0]
 			}
-			mov = passoHosp[cel(a.X, a.Y)]
+			mov = string(passoHosp[cel(a.X, a.Y)])
 		}
 		fmt.Fprintln(escritor, a.ID, mov)
 	}
@@ -439,6 +579,11 @@ func main() {
 
 	// função que marca o caminho das celulas
 	percursoLarguraHospitais()
+
+	filaAmb = make([]int, largura*altura)
+	visitado = make([]int, largura*altura)
+	pai = make([]int, largura*altura)
+
 
 
 	fmt.Fprintln(escritor, "PRONTO")

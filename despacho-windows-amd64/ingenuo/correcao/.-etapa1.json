@@ -20,7 +20,7 @@
       "criterio": "p99 do processador por turno até 4,0 vezes o do bot indexado (mediana de 10 partidas do cenário estresse), sem passar do teto em mais de 10 turnos por partida",
       "valor": 15,
       "pontos": 15,
-      "motivo": "razão mediana 1,9 (de 1,6 a 3,5); exigido até 4,0",
+      "motivo": "razão mediana 2,5 (de 1,5 a 3,7); exigido até 4,0",
       "pontuacao": false
     },
     {
@@ -29,7 +29,7 @@
       "criterio": "soma de pontos pelo menos 10% maior que a do bot ingênuo em 10 partidas do cenário medio",
       "valor": 10,
       "pontos": 10,
-      "motivo": "soma 75934 x 50686 (+49.8%; exigido +10%)",
+      "motivo": "soma 78008 x 49682 (+57.0%; exigido +10%)",
       "pontuacao": true
     },
     {
@@ -38,7 +38,7 @@
       "criterio": "soma de pontos pelo menos 2% maior que a do bot indexado em 10 partidas do cenário estresse",
       "valor": 10,
       "pontos": 10,
-      "motivo": "soma 548405 x 428689 (+27.9%; exigido +2%)",
+      "motivo": "soma 572783 x 412820 (+38.7%; exigido +2%)",
       "pontuacao": true
     }
   ],
@@ -55,5 +55,5 @@
     9,
     10
   ],
-  "quando": "21/11/2026 16:56"
+  "quando": "22/11/2026 12:43"
 }
