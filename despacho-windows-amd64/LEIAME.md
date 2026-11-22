@@ -45,9 +45,9 @@ Linux e WSL2:
 
 ```
 cd ingenuo
-go build -o meubot .
-../bin/servidor -cenario medio -etapa 1 -semente 1 -replay partida.jsonl ./meubot ../bin/indexado
-../bin/corretor -etapa 1 -bin ../bin -sementes 1-10 .
+go build -o meubot.exe .
+../bin/servidor.exe -cenario medio -etapa 2 -semente 1 -replay partida.jsonl ./meubot.exe ../bin/etapa2.exe
+../bin/corretor.exe -etapa 2 -bin ../bin -sementes 1-10 .
 ```
 
 macOS: os mesmos comandos. Antes da primeira execução, libere os executáveis baixados pelo navegador, ou o sistema bloqueia a abertura:
@@ -63,8 +63,8 @@ Windows, no PowerShell:
 ```
 cd ingenuo
 go build -o meubot.exe .
-..\bin\servidor.exe -cenario medio -etapa 1 -semente 1 -replay partida.jsonl .\meubot.exe ..\bin\indexado.exe
-..\bin\corretor.exe -etapa 1 -bin ..\bin -sementes 1-10 .
+..\bin\servidor.exe -cenario medio -etapa 2 -semente 1 -replay partida.jsonl .\meubot.exe ..\bin\indexado.exe
+..\bin\corretor.exe -etapa 2 -bin ..\bin -sementes 1-10 .
 ```
 
 O antivírus do Windows às vezes bloqueia executáveis Go sem assinatura digital. Se isso acontecer, libere a pasta do kit nas exclusões do Microsoft Defender.
